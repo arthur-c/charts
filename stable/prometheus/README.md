@@ -291,6 +291,42 @@ Parameter | Description | Default
 `serverFiles.prometheus.yml` | Prometheus server scrape configuration | example configuration
 `extraScrapeConfigs` | Prometheus server additional scrape configuration | ""
 `networkPolicy.enabled` | Enable NetworkPolicy | `false` |
+`thanosSidecar.enabled` | Enable Thanos sidecar | `false` |
+`thanosSidecar.name` | name of Thanos sidecar container | `thanos-sidecar` |
+`thanosSidecar.image.repository` | Thanos container repository | `improbable/thanos` |
+`thanosSidecar.image.tag` | name of Thanos container image tag | `master-2018-12-04-bcb609d` |
+`thanosSidecar.image.pullPolicy` | Thanos container image pull policy | `IfNotPresent` |
+`thanosSidecar.logLevel` | Thanos log level | `debug` |
+`thanosSidecar.clusterService.type` | Thanos cluster service type | `ClusterIP` |
+`thanosSidecar.clusterService.nodePortEnabled` | Thanos cluster service nodePort switch | `false` |
+`thanosSidecar.clusterService.nodePort` | Thanos cluster service nodePort port | `30900` |
+`thanosSidecar.clusterService.externalTrafficPolicy` | If set, set externalTrafficPolicy, options `Local` or `Cluster` | `""` |
+`thanosSidecar.clusterService.annotations` | Thanos cluster service annotations | `{}` |
+`thanosSidecar.grpcService.type` | Thanos grpc service type | `ClusterIP` |
+`thanosSidecar.grpcService.nodePortEnabled` | Thanos grpc service nodePort switch | `false` |
+`thanosSidecar.grpcService.nodePort` | Thanos grpc service nodePort port | `30901` |
+`thanosSidecar.grpcService.externalTrafficPolicy` | If set, set externalTrafficPolicy, options `Local` or `Cluster` | `""` |
+`thanosSidecar.grpcService.annotations` | Thanos grpc service annotations | `{}` |
+`thanosSidecar.httpService.type` | Thanos http service type | `ClusterIP` |
+`thanosSidecar.httpService.nodePortEnabled` | Thanos http service nodePort switch | `false` |
+`thanosSidecar.httpService.nodePort` | Thanos http service nodePort port | `30902` |
+`thanosSidecar.httpService.externalTrafficPolicy` | If set, set externalTrafficPolicy, options `Local` or `Cluster` | `""` |
+`thanosSidecar.httpService.annotations` | Thanos http service annotations | `{}` |
+`thanosSidecar.tlsServer.enabled` | if true, enable tls on thanos sidecar gprc server and create a kubernetes secret with tls credentials | `false` |
+`thanosSidecar.tlsServer.crt` | TLS certificate in a base64 encoded string  | `""` |
+`thanosSidecar.tlsServer.key` | TLS key in a base64 encoded string  | `""` |
+`thanosSidecar.tlsServer.ca` | TLS CA certificate in a base64 encoded string  | `""` |
+`thanosSidecar.s3.enabled` | if true, enable s3 store and create a configmap with thanos objectstore config  | `false` |
+`thanosSidecar.s3.bucket` | S3 bucket name  | `""` |
+`thanosSidecar.s3.endpoint` | S3 bucket endpoint (ex: s3.eu-west-1.amazonaws.com)  | `""` |
+`thanosSidecar.s3.insecure` | S3 insecure mode  | `false` |
+`thanosSidecar.s3.signatureV2` | S3 insecure mode  | `true` |
+`thanosSidecar.s3.encryptSse` | S3 encryptSse mode  | `false` |
+`thanosSidecar.clusterDisabled` | Disable thanos gossip cluster - not supported by the chart yet | `true` |
+`thanosSidecar.extraEnv` | Thanos extra environment variables | `{}` |
+`thanosSidecar.extraArgs` | Thanos extra container args | `{}` |
+`thanosSidecar.extraConfigmapMounts` | Thanos extra config map mounts | `[]` |
+`thanosSidecar.resources` | Thanos resources | `{}` |
 
 Specify each parameter using the `--set key=value[,key=value]` argument to `helm install`. For example,
 
@@ -363,3 +399,59 @@ implements the Kubernetes NetworkPolicy spec, and set `networkPolicy.enabled` to
 
 If NetworkPolicy is enabled for Prometheus' scrape targets, you may also need
 to manually create a networkpolicy which allows it.
+
+### Thanos sidecar deployment
+
+
+Thanos is a set of components that can be composed into a highly available metric system with unlimited storage capacity. It can be added seamlessly on top of existing Prometheus deployments and leverages the Prometheus 2.0 storage format to cost-efficiently store historical metric data in any object storage while retaining fast query latencies. Additionally, it provides a global query view across all Prometheus installations and can merge data from Prometheus HA pairs on the fly.
+
+https://github.com/improbable-eng/thanos
+
+
+Example of parameters for enabling Thanos sidecar and peers service:
+
+
+```yaml
+server:
+  service:
+    type: NodePort
+    nodePort: 30000
+
+  global:
+    ## How frequently to scrape targets by default
+    ##
+    scrape_interval: 1m
+    ## How long until a scrape request times out
+    ##
+    scrape_timeout: 10s
+    ## How frequently to evaluate rules
+    ##
+    evaluation_interval: 1m
+
+    external_labels:
+      monitor: prometheus
+      replica: 1
+
+  retention: 2d
+
+
+thanosSidecar:
+  enabled: true
+
+  image:
+    repository: improbable/thanos
+    tag: v0.1.0-rc.2
+
+
+  peersService:
+    enabled: true
+
+  extraEnv:
+   S3_BUCKET: xxx
+   S3_ENDPOINT: s3.eu-west-1.amazonaws.com
+   S3_ACCESS_KEY: xxx
+   S3_SECRET_KEY: xxx
+   S3_SIGNATURE_VERSION2: true
+```
+
+

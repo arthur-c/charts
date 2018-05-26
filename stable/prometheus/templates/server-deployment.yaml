@@ -77,7 +77,64 @@ spec:
               subPath: {{ .subPath }}
               readOnly: {{ .readOnly }}
           {{- end }}
-
+      {{- if .Values.thanosSidecar.enabled }}
+        - name: {{ template "prometheus.name" . }}-{{ .Values.server.name }}-{{ .Values.thanosSidecar.name }}
+          image: "{{ .Values.thanosSidecar.image.repository }}:{{ .Values.thanosSidecar.image.tag }}"
+          imagePullPolicy: "{{ .Values.thanosSidecar.image.pullPolicy }}"
+          args:
+            - sidecar
+            - --log.level={{ .Values.thanosSidecar.logLevel }}
+            - --tsdb.path={{ .Values.server.persistentVolume.mountPath }}
+            - --prometheus.url=http://localhost:9090{{ .Values.server.prefixURL }}
+          {{- if .Values.thanosSidecar.clusterDisabled }}
+            - --cluster.disable
+          {{- end }}
+          {{- if .Values.thanosSidecar.s3.enabled }}
+            - --objstore.config-file=/thanos-s3/s3.yaml
+          {{- end }}
+          {{- if .Values.thanosSidecar.tlsServer.enabled }}
+            - --grpc-server-tls-cert=/thanos-tls-server/server.crt
+            - --grpc-server-tls-key=/thanos-tls-server/server.key
+            - --grpc-server-tls-client-ca=/thanos-tls-server/ca.crt
+          {{- end }}
+          {{- range $key, $value := .Values.thanosSidecar.extraArgs }}
+            - --{{ $key }}={{ $value }}
+          {{- end }}
+          env:
+            {{- range $key, $value := .Values.thanosSidecar.extraEnv }}
+            - name: {{ $key }}
+              value: "{{ $value }}"
+            {{- end }}
+          ports:
+            - containerPort: 10902
+              name: http
+            - containerPort: 10901
+              name: grpc
+            - containerPort: 10900
+              name: cluster
+          resources:
+{{ toYaml .Values.thanosSidecar.resources | indent 12 }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config
+              readOnly: true
+            - name: storage-volume
+              mountPath: {{ .Values.server.persistentVolume.mountPath }}
+              subPath: "{{ .Values.server.persistentVolume.subPath }}"
+          {{- if .Values.thanosSidecar.s3.enabled }}
+            - name: {{ template "prometheus.server.fullname" . }}-thanos-sidecar-s3-config
+              mountPath: /thanos-s3
+          {{- end }}
+          {{- if .Values.thanosSidecar.tlsServer.enabled }}
+            - name: {{ template "prometheus.server.fullname" . }}-thanos-sidecar-tls-server
+              mountPath: /thanos-tls-server
+          {{- end }}
+          {{- range .Values.thanosSidecar.extraConfigmapMounts }}
+            - name: {{ $.Values.thanosSidecar.name }}-{{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly }}
+          {{- end }}
+{{- end }}
         - name: {{ template "prometheus.name" . }}-{{ .Values.server.name }}
           image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}"
           imagePullPolicy: "{{ .Values.server.image.pullPolicy }}"
@@ -195,5 +252,15 @@ spec:
         - name: {{ .name }}
           configMap:
             name: {{ .configMap }}
+      {{- end }}
+      {{- if .Values.thanosSidecar.s3.enabled }}
+        - name: {{ template "prometheus.server.fullname" . }}-thanos-sidecar-s3-config
+          configMap:
+            name: {{ template "prometheus.server.fullname" . }}-thanos-sidecar-s3-config
+      {{- end }}
+      {{- if .Values.thanosSidecar.tlsServer.enabled }}
+        - name: {{ template "prometheus.server.fullname" . }}-thanos-sidecar-tls-server
+          secret:
+            secretName: {{ template "prometheus.server.fullname" . }}-thanos-sidecar-tls-server
       {{- end }}
 {{- end -}}
